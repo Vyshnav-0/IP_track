@@ -16,39 +16,73 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 console = Console()
 
+def get_venv_python():
+    """Get the Python executable path from virtual environment."""
+    if sys.platform == "win32":
+        return "venv\\Scripts\\python.exe"
+    return "venv/bin/python"
+
+def check_venv():
+    """Check if virtual environment exists and is valid."""
+    venv_path = Path("venv")
+    if not venv_path.exists():
+        return False
+    
+    python_executable = get_venv_python()
+    if not os.path.exists(python_executable):
+        return False
+    
+    try:
+        # Try to import a required package to verify the environment
+        subprocess.check_call([python_executable, "-c", "import requests; import PyPDF2; from PIL import Image; import rich"])
+        return True
+    except subprocess.CalledProcessError:
+        return False
+
+def install_package(pip_executable, package):
+    """Install a package with error handling."""
+    try:
+        console.print(f"[yellow]Installing {package}...[/yellow]")
+        subprocess.check_call([pip_executable, "install", package])
+        return True
+    except subprocess.CalledProcessError as e:
+        console.print(f"[red]Error installing {package}: {str(e)}[/red]")
+        return False
+
 def setup_environment():
     """Set up the virtual environment and install requirements."""
     try:
-        # Create virtual environment if it doesn't exist
+        # Check if virtual environment exists and is valid
+        if check_venv():
+            console.print("[green]Using existing virtual environment...[/green]")
+            return get_venv_python()
+        
+        # Create new virtual environment if needed
         venv_path = Path("venv")
-        if not venv_path.exists():
-            console.print("[yellow]Creating virtual environment...[/yellow]")
-            venv.create("venv", with_pip=True)
+        console.print("[yellow]Creating new virtual environment...[/yellow]")
+        venv.create("venv", with_pip=True)
         
         # Get the correct Python executable path
-        if sys.platform == "win32":
-            python_executable = "venv\\Scripts\\python.exe"
-            pip_executable = "venv\\Scripts\\pip.exe"
-        else:
-            python_executable = "venv/bin/python"
-            pip_executable = "venv/bin/pip"
+        python_executable = get_venv_python()
+        pip_executable = "venv\\Scripts\\pip.exe" if sys.platform == "win32" else "venv/bin/pip"
         
         # Upgrade pip first
         console.print("[yellow]Upgrading pip...[/yellow]")
         subprocess.check_call([python_executable, "-m", "pip", "install", "--upgrade", "pip"])
         
-        # Install required packages
+        # Install required packages with specific versions
         console.print("[yellow]Installing required packages...[/yellow]")
         packages = [
             "requests==2.31.0",
             "PyPDF2==3.0.1",
-            "Pillow==10.0.0",
+            "Pillow==9.5.0",  # Using an older, more compatible version
             "rich==13.7.0"
         ]
         
         for package in packages:
-            console.print(f"[yellow]Installing {package}...[/yellow]")
-            subprocess.check_call([pip_executable, "install", package])
+            if not install_package(pip_executable, package):
+                console.print(f"[red]Failed to install {package}. Please check your Python version and try again.[/red]")
+                return None
         
         return python_executable
     except Exception as e:
