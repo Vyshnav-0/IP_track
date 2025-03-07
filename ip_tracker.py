@@ -50,8 +50,8 @@ def check_venv():
         return False
     
     try:
-        # Try to import a required package to verify the environment
-        subprocess.check_call([python_executable, "-c", "import requests; import PyPDF2; from PIL import Image; import rich"])
+        # Try to import all required packages to verify the environment
+        subprocess.check_call([python_executable, "-c", "import requests; import PyPDF2; import bs4; import rich"])
         return True
     except subprocess.CalledProcessError:
         return False
@@ -101,6 +101,7 @@ def setup_environment():
         packages = [
             "requests==2.31.0",
             "PyPDF2==3.0.1",
+            "beautifulsoup4==4.12.2",
             "rich==13.7.0"
         ]
         
@@ -108,6 +109,15 @@ def setup_environment():
             if not install_package(pip_executable, python_executable, package):
                 console.print(f"[red]Failed to install {package}. Please check your Python version and try again.[/red]")
                 return None
+        
+        # Verify installations
+        console.print("[yellow]Verifying package installations...[/yellow]")
+        try:
+            subprocess.check_call([python_executable, "-c", "import requests; import PyPDF2; import bs4; import rich"])
+            console.print("[green]All packages installed successfully![/green]")
+        except subprocess.CalledProcessError as e:
+            console.print(f"[red]Error verifying package installations: {str(e)}[/red]")
+            return None
         
         return python_executable
     except Exception as e:
