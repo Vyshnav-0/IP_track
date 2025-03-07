@@ -6,43 +6,29 @@ This tool is designed for educational purposes only. It helps track IP addresses
 
 This tool is for educational purposes only. Do not use it for any malicious purposes or unauthorized tracking of IP addresses.
 
-## Installation
+## Requirements
 
-1. Clone this repository
-2. Install the required dependencies:
+- Python 3.6 or higher
+- Internet connection for package installation
+
+## Installation & Running
+
+### Windows Users
+Simply double-click `ip_tracker.py` or run from command prompt:
 ```bash
-pip install -r requirements.txt
+python ip_tracker.py
 ```
 
-## Usage
-
-The tool supports three types of sources:
-- PDF files
-- Image files
-- Websites
-
-### Basic Usage
-
+### Linux/Mac Users
+Run the script:
 ```bash
-python ip_tracker.py --webhook YOUR_DISCORD_WEBHOOK_URL --type [pdf|img|website] --source [FILE_PATH|URL]
+python3 ip_tracker.py
 ```
 
-### Examples
-
-1. For PDF files:
-```bash
-python ip_tracker.py --webhook https://discord.com/api/webhooks/... --type pdf --source document.pdf
-```
-
-2. For Image files:
-```bash
-python ip_tracker.py --webhook https://discord.com/api/webhooks/... --type img --source image.jpg
-```
-
-3. For Websites:
-```bash
-python ip_tracker.py --webhook https://discord.com/api/webhooks/... --type website --source https://example.com
-```
+The tool will automatically:
+1. Create a virtual environment
+2. Install all required dependencies
+3. Start the IP Tracker Tool
 
 ## Features
 
@@ -51,9 +37,23 @@ python ip_tracker.py --webhook https://discord.com/api/webhooks/... --type websi
 - Extracts IP addresses from website content
 - Sends results to Discord webhook
 - Logging functionality for tracking operations
+- Professional command-line interface
+- Automatic dependency management
+- One-click setup and run
 
-## Requirements
+## Usage
 
-- Python 3.6 or higher
-- Required packages listed in requirements.txt
-- Discord webhook URL 
+The tool supports three types of sources:
+- PDF files
+- Image files
+- Websites
+
+When you run the tool, you'll be prompted to:
+1. Enter your Discord webhook URL
+2. Choose the type of file to process
+3. Provide the file path or URL
+4. View the results in your Discord channel
+
+## Note
+
+The tool creates a virtual environment in the `venv` directory. This keeps the dependencies isolated from your system Python installation. 
