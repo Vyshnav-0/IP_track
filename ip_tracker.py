@@ -78,15 +78,11 @@ def install_package(pip_executable, python_executable, package):
 def setup_environment():
     """Set up the virtual environment and install requirements."""
     try:
-        # Check if virtual environment exists and is valid
-        if check_venv():
-            console.print("[green]Using existing virtual environment...[/green]")
-            return get_venv_python()
-        
         # Create new virtual environment if needed
         venv_path = Path("venv")
-        console.print("[yellow]Creating new virtual environment...[/yellow]")
-        venv.create("venv", with_pip=True)
+        if not venv_path.exists():
+            console.print("[yellow]Creating new virtual environment...[/yellow]")
+            venv.create("venv", with_pip=True)
         
         # Get the correct Python executable path
         python_executable = get_venv_python()
@@ -106,8 +102,12 @@ def setup_environment():
         ]
         
         for package in packages:
-            if not install_package(pip_executable, python_executable, package):
-                console.print(f"[red]Failed to install {package}. Please check your Python version and try again.[/red]")
+            try:
+                console.print(f"[yellow]Installing {package}...[/yellow]")
+                subprocess.check_call([python_executable, "-m", "pip", "install", "--no-cache-dir", package])
+                console.print(f"[green]Successfully installed {package}[/green]")
+            except subprocess.CalledProcessError as e:
+                console.print(f"[red]Error installing {package}: {str(e)}[/red]")
                 return None
         
         # Verify installations
@@ -115,11 +115,11 @@ def setup_environment():
         try:
             subprocess.check_call([python_executable, "-c", "import requests; import PyPDF2; import bs4; import rich"])
             console.print("[green]All packages installed successfully![/green]")
+            return python_executable
         except subprocess.CalledProcessError as e:
             console.print(f"[red]Error verifying package installations: {str(e)}[/red]")
             return None
-        
-        return python_executable
+            
     except Exception as e:
         console.print(f"[red]Error during setup: {str(e)}[/red]")
         return None
@@ -412,56 +412,108 @@ def show_menu():
         except ValueError:
             console.print("[red]Please enter a valid number.[/red]")
 
+def install_required_packages():
+    """Install required packages globally"""
+    try:
+        console.print("[yellow]Checking and installing required packages...[/yellow]")
+        
+        # List of required packages
+        packages = [
+            "requests==2.31.0",
+            "PyPDF2==3.0.1",
+            "beautifulsoup4==4.12.2",
+            "rich==13.7.0"
+        ]
+        
+        # Try installing with pip first
+        for package in packages:
+            try:
+                console.print(f"[yellow]Installing {package}...[/yellow]")
+                subprocess.check_call([sys.executable, "-m", "pip", "install", "--no-cache-dir", package])
+                console.print(f"[green]Successfully installed {package}[/green]")
+            except subprocess.CalledProcessError as e:
+                console.print(f"[red]Error installing {package}: {str(e)}[/red]")
+                return False
+        
+        # Verify installations
+        console.print("[yellow]Verifying package installations...[/yellow]")
+        try:
+            subprocess.check_call([sys.executable, "-c", "import requests; import PyPDF2; import bs4; import rich"])
+            console.print("[green]All packages installed successfully![/green]")
+            return True
+        except subprocess.CalledProcessError as e:
+            console.print(f"[red]Error verifying package installations: {str(e)}[/red]")
+            return False
+            
+    except Exception as e:
+        console.print(f"[red]Error during package installation: {str(e)}[/red]")
+        return False
+
 def main():
-    # Get webhook URL
-    webhook_url = get_webhook_url()
+    # Set up virtual environment and install packages
+    python_executable = setup_environment()
+    if not python_executable:
+        console.print("[red]Failed to set up the environment. Please check your Python installation and try again.[/red]")
+        return
     
-    while True:
-        choice = show_menu()
-        
-        if choice == 1:
-            console.print("\n[bold blue]Select your PDF file...[/bold blue]")
-            file_path = select_file(
-                title="Select PDF File",
-                filetypes=[("PDF files", "*.pdf"), ("All files", "*.*")]
-            )
-            if file_path and file_path.lower().endswith('.pdf'):
-                create_tracking_pdf(file_path, webhook_url)
-            else:
-                console.print("[red]No valid PDF file selected.[/red]")
-        
-        elif choice == 2:
-            console.print("\n[bold blue]Select your image file...[/bold blue]")
-            file_path = select_file(
-                title="Select Image File",
-                filetypes=[
-                    ("Image files", "*.png *.jpg *.jpeg *.gif *.bmp"),
-                    ("All files", "*.*")
-                ]
-            )
-            if file_path:
-                create_tracking_image(file_path, webhook_url)
-            else:
-                console.print("[red]No valid image file selected.[/red]")
-        
-        elif choice == 3:
-            url = Prompt.ask("\n[bold blue]Enter the website URL[/bold blue]")
-            if url.startswith(('http://', 'https://')):
-                create_tracking_website(url, webhook_url)
-            else:
-                console.print("[red]Invalid URL. Please enter a valid URL starting with http:// or https://[/red]")
-        
-        elif choice == 4:
-            console.print(Panel.fit(
-                "[bold green]Thank you for using IP Tracker Tool![/bold green]",
-                title="Goodbye",
-                border_style="green"
-            ))
-            break
-        
-        if Confirm.ask("\n[bold blue]Do you want to continue?[/bold blue]"):
-            continue
-        break
+    # Get the current script path
+    script_path = os.path.abspath(__file__)
+    
+    # Run the script in the virtual environment
+    console.print("[green]Starting IP Tracker Tool in virtual environment...[/green]")
+    subprocess.call([python_executable, script_path, "--in-venv"])
 
 if __name__ == "__main__":
-    main() 
+    if "--in-venv" in sys.argv:
+        # This is the code that runs inside the virtual environment
+        webhook_url = get_webhook_url()
+        
+        while True:
+            choice = show_menu()
+            
+            if choice == 1:
+                console.print("\n[bold blue]Select your PDF file...[/bold blue]")
+                file_path = select_file(
+                    title="Select PDF File",
+                    filetypes=[("PDF files", "*.pdf"), ("All files", "*.*")]
+                )
+                if file_path and file_path.lower().endswith('.pdf'):
+                    create_tracking_pdf(file_path, webhook_url)
+                else:
+                    console.print("[red]No valid PDF file selected.[/red]")
+            
+            elif choice == 2:
+                console.print("\n[bold blue]Select your image file...[/bold blue]")
+                file_path = select_file(
+                    title="Select Image File",
+                    filetypes=[
+                        ("Image files", "*.png *.jpg *.jpeg *.gif *.bmp"),
+                        ("All files", "*.*")
+                    ]
+                )
+                if file_path:
+                    create_tracking_image(file_path, webhook_url)
+                else:
+                    console.print("[red]No valid image file selected.[/red]")
+            
+            elif choice == 3:
+                url = Prompt.ask("\n[bold blue]Enter the website URL[/bold blue]")
+                if url.startswith(('http://', 'https://')):
+                    create_tracking_website(url, webhook_url)
+                else:
+                    console.print("[red]Invalid URL. Please enter a valid URL starting with http:// or https://[/red]")
+            
+            elif choice == 4:
+                console.print(Panel.fit(
+                    "[bold green]Thank you for using IP Tracker Tool![/bold green]",
+                    title="Goodbye",
+                    border_style="green"
+                ))
+                break
+            
+            if Confirm.ask("\n[bold blue]Do you want to continue?[/bold blue]"):
+                continue
+            break
+    else:
+        # This is the code that runs first to set up the environment
+        main() 
