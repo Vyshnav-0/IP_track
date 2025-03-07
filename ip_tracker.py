@@ -11,11 +11,27 @@ from rich.panel import Panel
 from rich.prompt import Prompt, Confirm
 from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
+import tkinter as tk
+from tkinter import filedialog
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 console = Console()
+
+def select_file(title="Select File", filetypes=None):
+    """Open file picker dialog and return selected file path"""
+    root = tk.Tk()
+    root.withdraw()  # Hide the main window
+    file_path = filedialog.askopenfilename(title=title, filetypes=filetypes)
+    return file_path if file_path else None
+
+def select_save_file(title="Save File As", filetypes=None):
+    """Open save file dialog and return selected file path"""
+    root = tk.Tk()
+    root.withdraw()  # Hide the main window
+    file_path = filedialog.asksaveasfilename(title=title, filetypes=filetypes)
+    return file_path if file_path else None
 
 def get_venv_python():
     """Get the Python executable path from virtual environment."""
@@ -407,18 +423,29 @@ def main():
         choice = show_menu()
         
         if choice == 1:
-            file_path = Prompt.ask("\n[bold blue]Enter the path to your PDF file[/bold blue]")
-            if os.path.exists(file_path) and file_path.lower().endswith('.pdf'):
+            console.print("\n[bold blue]Select your PDF file...[/bold blue]")
+            file_path = select_file(
+                title="Select PDF File",
+                filetypes=[("PDF files", "*.pdf"), ("All files", "*.*")]
+            )
+            if file_path and file_path.lower().endswith('.pdf'):
                 create_tracking_pdf(file_path, webhook_url)
             else:
-                console.print("[red]Invalid PDF file path or file does not exist.[/red]")
+                console.print("[red]No valid PDF file selected.[/red]")
         
         elif choice == 2:
-            file_path = Prompt.ask("\n[bold blue]Enter the path to your image file[/bold blue]")
-            if os.path.exists(file_path):
+            console.print("\n[bold blue]Select your image file...[/bold blue]")
+            file_path = select_file(
+                title="Select Image File",
+                filetypes=[
+                    ("Image files", "*.png *.jpg *.jpeg *.gif *.bmp"),
+                    ("All files", "*.*")
+                ]
+            )
+            if file_path:
                 create_tracking_image(file_path, webhook_url)
             else:
-                console.print("[red]Invalid image file path or file does not exist.[/red]")
+                console.print("[red]No valid image file selected.[/red]")
         
         elif choice == 3:
             url = Prompt.ask("\n[bold blue]Enter the website URL[/bold blue]")
