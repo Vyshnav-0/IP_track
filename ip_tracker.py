@@ -39,7 +39,7 @@ def check_venv():
     except subprocess.CalledProcessError:
         return False
 
-def install_package(pip_executable, package):
+def install_package(pip_executable, python_executable, package):
     """Install a package with error handling."""
     try:
         console.print(f"[yellow]Installing {package}...[/yellow]")
@@ -81,17 +81,41 @@ def setup_environment():
         
         # Install required packages with specific versions
         console.print("[yellow]Installing required packages...[/yellow]")
-        packages = [
+        
+        # First install basic packages
+        basic_packages = [
             "requests==2.31.0",
             "PyPDF2==3.0.1",
-            "Pillow==10.2.0",  # Updated to latest stable version
             "rich==13.7.0"
         ]
         
-        for package in packages:
-            if not install_package(pip_executable, package):
+        for package in basic_packages:
+            if not install_package(pip_executable, python_executable, package):
                 console.print(f"[red]Failed to install {package}. Please check your Python version and try again.[/red]")
                 return None
+        
+        # Try installing Pillow with different versions
+        pillow_versions = [
+            "Pillow==9.5.0",
+            "Pillow==9.4.0",
+            "Pillow==9.3.0",
+            "Pillow==9.2.0",
+            "Pillow==9.1.0"
+        ]
+        
+        pillow_installed = False
+        for version in pillow_versions:
+            try:
+                console.print(f"[yellow]Trying to install {version}...[/yellow]")
+                subprocess.check_call([python_executable, "-m", "pip", "install", "--no-cache-dir", version])
+                console.print(f"[green]Successfully installed {version}[/green]")
+                pillow_installed = True
+                break
+            except subprocess.CalledProcessError:
+                continue
+        
+        if not pillow_installed:
+            console.print("[red]Failed to install any version of Pillow. The tool will continue without image processing capabilities.[/red]")
         
         return python_executable
     except Exception as e:
